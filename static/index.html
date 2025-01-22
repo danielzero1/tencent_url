@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QQ音乐解析</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        form {
+            margin-bottom: 20px;
+        }
+
+        input {
+            margin-right: 10px;
+        }
+
+        .results {
+            margin-top: 20px;
+        }
+
+        .results img {
+            max-width: 200px;
+            height: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>QQ音乐解析器</h1>
+    <form id="musicForm">
+        <label for="song_url">歌曲URL:</label>
+        <input type="text" id="song_url" name="song_url" required>
+        <button type="submit">获取信息</button>
+    </form>
+
+    <div class="results" id="results"></div>
+
+    <div id="downloadSection" style="display: none;">
+        <h2>下载资源</h2>
+        <form id="downloadForm">
+            <input type="checkbox" id="cover" name="cover" checked>
+            <label for="cover">封面</label><br>
+            <input type="checkbox" id="lyric" name="lyric" checked>
+            <label for="lyric">歌词</label><br>
+            <button type="submit">下载</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('musicForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            const songUrl = document.getElementById('song_url').value;
+            if (songUrl) {
+                fetchMusicInfo(songUrl);
+            } else {
+                alert('请输入歌曲URL');
+            }
+        });
+
+        async function fetchMusicInfo(songUrl) {
+            try {
+                const response = await fetch(`/song?url=${encodeURIComponent(songUrl)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                displayResults(data.song, data.music_urls, data.lyric);
+                document.getElementById('downloadSection').style.display = 'block';
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function displayResults(musicInfo, musicUrls, musicLyric) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <h2>歌曲信息</h2>
+                <ul>
+                    <li>名称: ${musicInfo.name}</li>
+                    <li>专辑: ${musicInfo.album}</li>
+                    <li>歌手: ${musicInfo.singer}</li>
+                    <li>时长: ${musicInfo.interval ? musicInfo.interval : 'N/A'}</li>
+                    <li><img src="${musicInfo.pic}" alt="专辑封面"></li>
+                </ul>
+                <h2>音乐URL</h2>
+                <ul>
+                    ${Object.entries(musicUrls).map(([type, data]) => `<li>${type}: <a href="${data.url}" target="_blank">${data.bitrate}</a></li>`).join('')}
+                </ul>
+                <h2>歌词</h2>
+                <pre>${musicLyric.lyric}</pre>
+                <h2>翻译歌词</h2>
+                <pre>${musicLyric.tylyric}</pre>
+            `;
+        }
+
+        document.getElementById('downloadForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            const songUrl = document.getElementById('song_url').value;
+            const cover = document.getElementById('cover').checked;
+            const lyric = document.getElementById('lyric').checked;
+
+            downloadResources(songUrl, cover, lyric);
+        });
+
+        async function downloadResources(songUrl, cover, lyric) {
+            try {
+                const response = await fetch(`/download?song_url=${encodeURIComponent(songUrl)}&cover=${cover}&lyric=${lyric}`);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    const filename = contentDisposition.split('filename*=utf-8\'\'')[1] ?? 'download.zip';
+                    a.download = decodeURIComponent(filename);
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    throw new Error('下载失败');
+                }
+            } catch (error) {
+                alert('下载失败: ' + error.message);
+            }
+        }
+    </script>
+</body>
+
+</html>
